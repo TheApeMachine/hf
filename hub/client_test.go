@@ -14,7 +14,6 @@ import (
 	"testing"
 
 	. "github.com/smartystreets/goconvey/convey"
-	"github.com/theapemachine/caramba/pkg/config"
 	"github.com/theapemachine/qpool"
 )
 
@@ -52,11 +51,11 @@ func TestClient_Download(test *testing.T) {
 		defer server.Close()
 
 		cacheDir := test.TempDir()
-		client := NewClient(&config.HubConfig{
+		client := NewClient(&HubConfig{
 			Endpoint:   server.URL,
 			CacheDir:   cacheDir,
 			MaxWorkers: 1,
-			Xet:        config.HubXetConfig{Active: true},
+			Xet:        HubXetConfig{Active: true},
 		})
 
 		Convey("It should download into a commit-pinned snapshot", func() {
@@ -122,12 +121,12 @@ func TestClient_Download(test *testing.T) {
 			})
 			So(err, ShouldBeNil)
 
-			offlineClient := NewClient(&config.HubConfig{
+			offlineClient := NewClient(&HubConfig{
 				Endpoint:   server.URL,
 				CacheDir:   cacheDir,
 				Offline:    true,
 				MaxWorkers: 1,
-				Xet:        config.HubXetConfig{Active: true},
+				Xet:        HubXetConfig{Active: true},
 			})
 
 			file, err := offlineClient.Download(context.Background(), DownloadRequest{
@@ -155,11 +154,11 @@ func TestClient_Download(test *testing.T) {
 				},
 				true,
 			)
-			cachedClient := NewClient(&config.HubConfig{
+			cachedClient := NewClient(&HubConfig{
 				Endpoint:   server.URL,
 				CacheDir:   cacheDir,
 				MaxWorkers: 1,
-				Xet:        config.HubXetConfig{Active: true},
+				Xet:        HubXetConfig{Active: true},
 			})
 
 			file, err := cachedClient.Download(context.Background(), DownloadRequest{
@@ -194,11 +193,11 @@ func TestClient_Download(test *testing.T) {
 				},
 				false,
 			)
-			cachedClient := NewClient(&config.HubConfig{
+			cachedClient := NewClient(&HubConfig{
 				Endpoint:   server.URL,
 				CacheDir:   cacheDir,
 				MaxWorkers: 1,
-				Xet:        config.HubXetConfig{Active: true},
+				Xet:        HubXetConfig{Active: true},
 			})
 
 			file, err := cachedClient.Download(context.Background(), DownloadRequest{
@@ -243,11 +242,11 @@ func TestClient_Snapshot(test *testing.T) {
 		}))
 		defer server.Close()
 
-		client := NewClient(&config.HubConfig{
+		client := NewClient(&HubConfig{
 			Endpoint:   server.URL,
 			CacheDir:   test.TempDir(),
 			MaxWorkers: 2,
-			Xet:        config.HubXetConfig{Active: true},
+			Xet:        HubXetConfig{Active: true},
 		})
 
 		Convey("It should apply include and exclude filters", func() {
@@ -281,11 +280,11 @@ func TestClient_Snapshot(test *testing.T) {
 				},
 				true,
 			)
-			cachedClient := NewClient(&config.HubConfig{
+			cachedClient := NewClient(&HubConfig{
 				Endpoint:   server.URL,
 				CacheDir:   cacheDir,
 				MaxWorkers: 2,
-				Xet:        config.HubXetConfig{Active: true},
+				Xet:        HubXetConfig{Active: true},
 			})
 
 			snapshot, err := cachedClient.Snapshot(context.Background(), SnapshotRequest{
@@ -376,11 +375,11 @@ func TestClient_DownloadXet(test *testing.T) {
 		serverURL = server.URL
 		defer server.Close()
 
-		client := NewClient(&config.HubConfig{
+		client := NewClient(&HubConfig{
 			Endpoint:   server.URL,
 			CacheDir:   test.TempDir(),
 			MaxWorkers: 1,
-			Xet:        config.HubXetConfig{Active: true},
+			Xet:        HubXetConfig{Active: true},
 		})
 
 		Convey("It should reconstruct the file through CAS", func() {
@@ -415,11 +414,11 @@ func BenchmarkClient_DownloadDryRun(benchmark *testing.B) {
 	}))
 	defer server.Close()
 
-	client := NewClient(&config.HubConfig{
+	client := NewClient(&HubConfig{
 		Endpoint:   server.URL,
 		CacheDir:   benchmark.TempDir(),
 		MaxWorkers: 1,
-		Xet:        config.HubXetConfig{Active: true},
+		Xet:        HubXetConfig{Active: true},
 	})
 
 	for benchmark.Loop() {

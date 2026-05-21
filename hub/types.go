@@ -6,7 +6,6 @@ import (
 	"time"
 
 	fiberclient "github.com/gofiber/fiber/v3/client"
-	"github.com/theapemachine/caramba/pkg/config"
 )
 
 type RepoType string
@@ -26,16 +25,16 @@ Client downloads and caches Hugging Face Hub assets with revision-aware
 provenance metadata.
 */
 type Client struct {
-	config     *config.HubConfig
+	config     *HubConfig
 	httpClient *fiberclient.Client
 }
 
 /*
-NewClient constructs a Hub client from config.yml-backed settings.
+NewClient constructs a Hub client with the given settings.
 */
-func NewClient(hubConfig *config.HubConfig) *Client {
+func NewClient(hubConfig *HubConfig) *Client {
 	if hubConfig == nil {
-		hubConfig = config.NewHubConfig()
+		hubConfig = DefaultHubConfig()
 	}
 
 	return NewClientWithHTTP(hubConfig, nil)
@@ -46,10 +45,10 @@ NewClientWithHTTP constructs a Hub client with an injected HTTP transport.
 It is primarily used by tests.
 */
 func NewClientWithHTTP(
-	hubConfig *config.HubConfig, httpClient *fiberclient.Client,
+	hubConfig *HubConfig, httpClient *fiberclient.Client,
 ) *Client {
 	if hubConfig == nil {
-		hubConfig = config.NewHubConfig()
+		hubConfig = DefaultHubConfig()
 	}
 
 	if httpClient == nil {
