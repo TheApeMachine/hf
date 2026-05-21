@@ -4,10 +4,13 @@ go 1.26.1
 
 replace github.com/theapemachine/qpool => ../qpool
 
+replace github.com/theapemachine/manifesto => ../manifesto
+
 require (
 	github.com/gofiber/fiber/v3 v3.2.0
 	github.com/parquet-go/parquet-go v0.30.1
 	github.com/smartystreets/goconvey v1.8.1
+	github.com/theapemachine/manifesto v0.0.1
 	github.com/theapemachine/qpool v0.0.3
 )
 
@@ -44,14 +47,14 @@ require (
 	golang.org/x/crypto v0.50.0 // indirect
 	golang.org/x/net v0.53.0 // indirect
 	google.golang.org/protobuf v1.34.2 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
 require (
 	github.com/mattn/go-isatty v0.0.21 // indirect
 	github.com/phuslu/log v1.0.124 // indirect
 	github.com/theapemachine/errnie v1.2.0 // indirect
-	github.com/theapemachine/manifesto v0.0.1
 	golang.org/x/sync v0.20.0 // indirect
 	golang.org/x/sys v0.43.0 // indirect
-	golang.org/x/text v0.36.0 // indirect
+	golang.org/x/text v0.36.0
 )
