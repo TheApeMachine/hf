@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sync"
 
 	"github.com/theapemachine/hf/hub"
 	"github.com/theapemachine/hf/tokenizer"
@@ -16,8 +17,10 @@ import (
 Host implements manifesto runtime host operations for program execution.
 */
 type Host struct {
-	stdin     io.Reader
-	hubConfig *hub.HubConfig
+	stdinReader *bufio.Reader
+	hubConfig   *hub.HubConfig
+	mu          sync.Mutex
+	metadata    map[string]*tokenizer.Metadata
 }
 
 /*
@@ -44,9 +47,16 @@ func NewHost(options HostOptions) *Host {
 		hubConfig = hub.DefaultHubConfig()
 	}
 
+	reader, ok := stdin.(*bufio.Reader)
+
+	if !ok {
+		reader = bufio.NewReader(stdin)
+	}
+
 	return &Host{
-		stdin:     stdin,
-		hubConfig: hubConfig,
+		stdinReader: reader,
+		hubConfig:   hubConfig,
+		metadata:    make(map[string]*tokenizer.Metadata),
 	}
 }
 
@@ -56,13 +66,7 @@ ReadLine reads one line from the program stdin source.
 func (host *Host) ReadLine(ctx context.Context) (string, error) {
 	_ = ctx
 
-	reader, ok := host.stdin.(*bufio.Reader)
-
-	if !ok {
-		reader = bufio.NewReader(host.stdin)
-	}
-
-	line, err := reader.ReadString('\n')
+	line, err := host.stdinReader.ReadString('\n')
 
 	if err != nil && err != io.EOF {
 		return "", err
@@ -109,17 +113,17 @@ func (host *Host) Encode(ctx context.Context, request runtime.EncodeRequest) ([]
 	text := request.Text
 
 	if request.ApplyChatTemplate {
-		metadata, metadataErr := tokenizer.LoadMetadata(ctx, tokenizerSource(
-			request.Tokenizer,
-			request.TokenizerFile,
-			host.hubConfig.CacheDir,
-		))
+		metadata, metadataErr := host.loadMetadata(ctx, request.Tokenizer, request.TokenizerFile)
 
 		if metadataErr != nil {
 			return nil, metadataErr
 		}
 
-		text, err = metadata.ApplyChatTemplate(text)
+		if request.ChatContinuation {
+			text, err = metadata.ApplyChatContinuation(text)
+		} else {
+			text, err = metadata.ApplyChatTemplate(text)
+		}
 
 		if err != nil {
 			return nil, err
@@ -151,6 +155,35 @@ func (host *Host) loadTokenizer(
 	tokenizerFile string,
 ) (*tokenizer.Artifact, error) {
 	return tokenizer.Load(ctx, tokenizerSource(tokenizerName, tokenizerFile, host.hubConfig.CacheDir))
+}
+
+func (host *Host) loadMetadata(
+	ctx context.Context,
+	tokenizerName string,
+	tokenizerFile string,
+) (*tokenizer.Metadata, error) {
+	source := tokenizerSource(tokenizerName, tokenizerFile, host.hubConfig.CacheDir)
+	key := source.Key()
+
+	host.mu.Lock()
+	cached, ok := host.metadata[key]
+	host.mu.Unlock()
+
+	if ok {
+		return cached, nil
+	}
+
+	metadata, err := tokenizer.LoadMetadata(ctx, source)
+
+	if err != nil {
+		return nil, err
+	}
+
+	host.mu.Lock()
+	host.metadata[key] = metadata
+	host.mu.Unlock()
+
+	return metadata, nil
 }
 
 func tokenizerSource(tokenizerName, tokenizerFile, cacheDir string) tokenizer.Source {

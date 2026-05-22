@@ -66,11 +66,41 @@ func (metadata *Metadata) ApplyChatTemplate(text string) (string, error) {
 }
 
 /*
+ApplyChatContinuation renders a user turn to append to an existing chat token
+stream.
+*/
+func (metadata *Metadata) ApplyChatContinuation(text string) (string, error) {
+	if metadata == nil || metadata.ChatTemplate == "" {
+		return text, nil
+	}
+
+	rendered, err := metadata.renderChat(
+		[]ChatMessage{{Role: "user", Content: text}},
+		true,
+		false,
+	)
+
+	if err != nil {
+		return "", err
+	}
+
+	return metadata.EOTToken + strings.TrimPrefix(rendered, metadata.BOSToken), nil
+}
+
+/*
 RenderChat renders the common Hugging Face Llama-3 style chat template.
 */
 func (metadata *Metadata) RenderChat(
 	messages []ChatMessage,
 	addGenerationPrompt bool,
+) (string, error) {
+	return metadata.renderChat(messages, addGenerationPrompt, true)
+}
+
+func (metadata *Metadata) renderChat(
+	messages []ChatMessage,
+	addGenerationPrompt bool,
+	includeSystem bool,
 ) (string, error) {
 	if metadata == nil || metadata.ChatTemplate == "" {
 		return concatenateMessages(messages), nil
@@ -82,6 +112,13 @@ func (metadata *Metadata) RenderChat(
 
 	var builder strings.Builder
 	builder.WriteString(metadata.BOSToken)
+
+	if includeSystem {
+		builder.WriteString("<|start_header_id|>system<|end_header_id|>\n\n")
+		builder.WriteString("Cutting Knowledge Date: December 2023\n")
+		builder.WriteString("Today Date: 26 Jul 2024\n\n")
+		builder.WriteString(metadata.EOTToken)
+	}
 
 	for _, message := range messages {
 		role := strings.TrimSpace(message.Role)

@@ -18,7 +18,14 @@ func TestMetadataApplyChatTemplate(test *testing.T) {
 			text, err := metadata.ApplyChatTemplate(" hello ")
 
 			So(err, ShouldBeNil)
-			So(text, ShouldEqual, "<|begin_of_text|><|start_header_id|>user<|end_header_id|>\n\nhello<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n")
+			So(text, ShouldEqual, "<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\nCutting Knowledge Date: December 2023\nToday Date: 26 Jul 2024\n\n<|eot_id|><|start_header_id|>user<|end_header_id|>\n\nhello<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n")
+		})
+
+		Convey("It should render a continuation without a new beginning token", func() {
+			text, err := metadata.ApplyChatContinuation("what?")
+
+			So(err, ShouldBeNil)
+			So(text, ShouldEqual, "<|eot_id|><|start_header_id|>user<|end_header_id|>\n\nwhat?<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n")
 		})
 	})
 

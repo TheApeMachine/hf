@@ -299,10 +299,17 @@ system:
         weights:
           weight: model.norm.weight
 
+      - id: last_token
+        op: shape.last_token
+        in:
+          - final_norm
+        out:
+          - last_token
+
       - id: lm_head
         op: projection.linear
         in:
-          - final_norm
+          - last_token
         out:
           - logits
         config:
