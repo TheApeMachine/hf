@@ -136,17 +136,40 @@ func (host *Host) Encode(ctx context.Context, request runtime.EncodeRequest) ([]
 		return nil, fmt.Errorf("program host: encode: %w", err)
 	}
 
+	padTokenID, err := host.encodePadTokenID(ctx, request)
+
+	if err != nil {
+		return nil, err
+	}
+
 	if request.MaxLength > 0 && len(tokenIDs) > request.MaxLength {
 		tokenIDs = tokenIDs[:request.MaxLength]
 	}
 
-	if request.PadTokenID != 0 && request.MaxLength > 0 {
+	if padTokenID != 0 && request.MaxLength > 0 {
 		for len(tokenIDs) < request.MaxLength {
-			tokenIDs = append(tokenIDs, request.PadTokenID)
+			tokenIDs = append(tokenIDs, padTokenID)
 		}
 	}
 
 	return tokenIDs, nil
+}
+
+func (host *Host) encodePadTokenID(
+	ctx context.Context,
+	request runtime.EncodeRequest,
+) (int, error) {
+	if request.PadTokenID != 0 {
+		return request.PadTokenID, nil
+	}
+
+	metadata, err := host.loadMetadata(ctx, request.Tokenizer, request.TokenizerFile)
+
+	if err != nil {
+		return 0, err
+	}
+
+	return metadata.PadTokenID, nil
 }
 
 func (host *Host) loadTokenizer(

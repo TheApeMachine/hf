@@ -14,10 +14,12 @@ Metadata contains the small Hugging Face tokenizer-side contract used during
 inference setup.
 */
 type Metadata struct {
-	ChatTemplate string
-	BOSToken     string
-	EOSToken     string
-	EOTToken     string
+	ChatTemplate   string
+	BOSToken       string
+	EOSToken       string
+	EOTToken       string
+	ModelMaxLength int
+	PadTokenID     int
 }
 
 /*
@@ -47,6 +49,9 @@ func LoadMetadata(ctx context.Context, source Source) (*Metadata, error) {
 	if metadata.EOTToken == "" {
 		metadata.EOTToken = metadata.EOSToken
 	}
+
+	metadata.ModelMaxLength = tokenizerConfig.ModelMaxLength
+	metadata.PadTokenID = padTokenIDFromConfig(tokenizerConfig)
 
 	return metadata, nil
 }
@@ -151,10 +156,17 @@ type ChatMessage struct {
 }
 
 type tokenizerConfigDocument struct {
-	ChatTemplate string    `json:"chat_template"`
-	BOSToken     tokenText `json:"bos_token"`
-	EOSToken     tokenText `json:"eos_token"`
-	EOTToken     tokenText `json:"eot_token"`
+	ChatTemplate   string                    `json:"chat_template"`
+	BOSToken       tokenText                 `json:"bos_token"`
+	EOSToken       tokenText                 `json:"eos_token"`
+	EOTToken       tokenText                 `json:"eot_token"`
+	PadToken       tokenText                 `json:"pad_token"`
+	ModelMaxLength int                       `json:"model_max_length"`
+	AddedTokens    map[string]addedTokenSpec `json:"added_tokens_decoder"`
+}
+
+type addedTokenSpec struct {
+	Content string `json:"content"`
 }
 
 type specialTokensDocument struct {
@@ -261,4 +273,32 @@ func concatenateMessages(messages []ChatMessage) string {
 	}
 
 	return builder.String()
+}
+
+func padTokenIDFromConfig(tokenizerConfig tokenizerConfigDocument) int {
+	padToken := string(tokenizerConfig.PadToken)
+
+	if padToken == "" {
+		return 0
+	}
+
+	for rawID, entry := range tokenizerConfig.AddedTokens {
+		if entry.Content != padToken {
+			continue
+		}
+
+		tokenID := 0
+
+		for _, character := range rawID {
+			if character < '0' || character > '9' {
+				return 0
+			}
+
+			tokenID = tokenID*10 + int(character-'0')
+		}
+
+		return tokenID
+	}
+
+	return 0
 }
