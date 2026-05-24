@@ -3,360 +3,127 @@ package hfconfig
 import (
 	"bytes"
 	"fmt"
-	"strings"
 	"text/template"
+
+	"github.com/theapemachine/manifesto/asset"
 )
 
-const llamaTemplate = `kind: Block
-category: model
-op: block.model.{{.ModelType}}
-name: {{.ModelName}}
-label: {{.ModelName}}
-description: Automatically generated manifest for {{.ModelName}}
-initial_width: 300
-inputs:
-  - name: input_ids
-    type: tensor
-    description: Input token IDs [batch, seq_len]
-outputs:
-  - name: logits
-    type: tensor
-    description: Output logits [batch, seq_len, vocab_size]
+/*
+GenerateYAML converts a Hugging Face Config into a Manifesto YAML
+string by composing the architecture template registered for
+config.Architectures[0].
 
-system:
-  runtime:
-    type: model
-    backend: metal
-    model:
-      source: {{.Source}}
-      repo_type: model
-    tokenizer:
-      source: {{.Source}}
-      repo_type: model
-    generation:
-      max_new_tokens: 256
-      repetition_penalty: 1.1
-      temperature: 0.8
-      top_k: 50
-      top_p: 0.95
-      seed: 0
-      prompt_template: |+
-        <|begin_of_text|><|start_header_id|>system<|end_header_id|>
+This function intentionally does NOT contain any per-architecture Go
+template strings. The template body lives in
+manifesto/asset/template/loader/architecture/<ClassName>.yml and is
+loaded via asset.ReadFile() at runtime. Adding a new architecture
+means:
 
-        Cutting Knowledge Date: December 2023
-        Today Date: 26 Jul 2024
+ 1. Write the YAML template at the canonical path.
+ 2. Register the class name in hf/config/registry.go.
 
-        <|eot_id|><|start_header_id|>user<|end_header_id|>
-
-        {{` + "`{{prompt}}`" + `}}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
-
-      stop_tokens: []
-      stop_special_tokens: true
-
-  topology:
-    inputs:
-      - input_ids
-    nodes:
-      - id: embed_tokens
-        op: embedding.token
-        weights:
-          weight: model.embed_tokens.weight
-        in:
-          - input_ids
-        out:
-          - h_0
-        config:
-          vocab_size: {{.VocabSize}}
-          d_model: {{.HiddenSize}}
-
-      - id: transformer_layers
-        op: control.repeat
-        in:
-          - h_0
-        out:
-          - h_{{.NumHiddenLayers}}
-        repeat: {{.NumHiddenLayers}}
-        index: i
-        template:
-          - id: input_layernorm_${i}
-            op: math.rmsnorm
-            in:
-              - h_${i}
-            out:
-              - norm1_${i}
-            config:
-              eps: {{.RMSNormEps}}
-            weights:
-              weight: model.layers.${i}.input_layernorm.weight
-
-          - id: q_proj_${i}
-            op: projection.linear
-            in:
-              - norm1_${i}
-            out:
-              - q_proj_${i}
-            config:
-              in_features: {{.HiddenSize}}
-              out_features: {{.HiddenSize}}
-            weights:
-              weight: model.layers.${i}.self_attn.q_proj.weight
-
-          - id: k_proj_${i}
-            op: projection.linear
-            in:
-              - norm1_${i}
-            out:
-              - k_proj_${i}
-            config:
-              in_features: {{.HiddenSize}}
-              out_features: {{.KVHiddenSize}}
-            weights:
-              weight: model.layers.${i}.self_attn.k_proj.weight
-
-          - id: v_proj_${i}
-            op: projection.linear
-            in:
-              - norm1_${i}
-            out:
-              - v_proj_${i}
-            config:
-              in_features: {{.HiddenSize}}
-              out_features: {{.KVHiddenSize}}
-            weights:
-              weight: model.layers.${i}.self_attn.v_proj.weight
-
-          - id: q_heads_${i}
-            op: shape.view_as_heads
-            in:
-              - q_proj_${i}
-            out:
-              - q_heads_${i}
-            config:
-              num_heads: {{.NumAttentionHeads}}
-
-          - id: k_heads_${i}
-            op: shape.view_as_heads
-            in:
-              - k_proj_${i}
-            out:
-              - k_heads_${i}
-            config:
-              num_heads: {{.NumKeyValueHeads}}
-
-          - id: v_heads_${i}
-            op: shape.view_as_heads
-            in:
-              - v_proj_${i}
-            out:
-              - v_heads_${i}
-            config:
-              num_heads: {{.NumKeyValueHeads}}
-
-          - id: rope_q_${i}
-            op: positional.rope
-            in:
-              - q_heads_${i}
-            out:
-              - q_rope_${i}
-            config:
-              base: {{.RopeTheta}}
-              head_dim: {{.HeadDim}}
-              mode: half
-              rope_type: llama3
-              rope_factor: 32.0
-              rope_low_freq_factor: 1.0
-              rope_high_freq_factor: 4.0
-              rope_original_context: 8192
-
-          - id: rope_k_${i}
-            op: positional.rope
-            in:
-              - k_heads_${i}
-            out:
-              - k_rope_${i}
-            config:
-              base: {{.RopeTheta}}
-              head_dim: {{.HeadDim}}
-              mode: half
-              rope_type: llama3
-              rope_factor: 32.0
-              rope_low_freq_factor: 1.0
-              rope_high_freq_factor: 4.0
-              rope_original_context: 8192
-
-          - id: attn_${i}
-            op: attention.gqa
-            in:
-              - q_rope_${i}
-              - k_rope_${i}
-              - v_heads_${i}
-            out:
-              - attn_heads_${i}
-            config:
-              num_heads: {{.NumAttentionHeads}}
-              num_kv_heads: {{.NumKeyValueHeads}}
-              head_dim: {{.HeadDim}}
-              causal: true
-
-          - id: merge_attention_${i}
-            op: shape.merge_heads
-            in:
-              - attn_heads_${i}
-            out:
-              - attn_out_${i}
-
-          - id: o_proj_${i}
-            op: projection.linear
-            in:
-              - attn_out_${i}
-            out:
-              - o_proj_${i}
-            config:
-              in_features: {{.HiddenSize}}
-              out_features: {{.HiddenSize}}
-            weights:
-              weight: model.layers.${i}.self_attn.o_proj.weight
-
-          - id: add_1_${i}
-            op: math.add
-            in:
-              - h_${i}
-              - o_proj_${i}
-            out:
-              - h_mid_${i}
-
-          - id: post_attention_layernorm_${i}
-            op: math.rmsnorm
-            in:
-              - h_mid_${i}
-            out:
-              - norm2_${i}
-            config:
-              eps: {{.RMSNormEps}}
-            weights:
-              weight: model.layers.${i}.post_attention_layernorm.weight
-
-          - id: gate_proj_${i}
-            op: projection.linear
-            in:
-              - norm2_${i}
-            out:
-              - gate_proj_${i}
-            config:
-              in_features: {{.HiddenSize}}
-              out_features: {{.IntermediateSize}}
-            weights:
-              weight: model.layers.${i}.mlp.gate_proj.weight
-
-          - id: up_proj_${i}
-            op: projection.linear
-            in:
-              - norm2_${i}
-            out:
-              - up_proj_${i}
-            config:
-              in_features: {{.HiddenSize}}
-              out_features: {{.IntermediateSize}}
-            weights:
-              weight: model.layers.${i}.mlp.up_proj.weight
-
-          - id: swiglu_${i}
-            op: activation.swiglu
-            in:
-              - gate_proj_${i}
-              - up_proj_${i}
-            out:
-              - swiglu_out_${i}
-
-          - id: down_proj_${i}
-            op: projection.linear
-            in:
-              - swiglu_out_${i}
-            out:
-              - down_proj_${i}
-            config:
-              in_features: {{.IntermediateSizeHalf}}
-              out_features: {{.HiddenSize}}
-            weights:
-              weight: model.layers.${i}.mlp.down_proj.weight
-
-          - id: add_2_${i}
-            op: math.add
-            in:
-              - h_mid_${i}
-              - down_proj_${i}
-            out:
-              - h_${next_i}
-
-      - id: norm
-        op: math.rmsnorm
-        in:
-          - h_{{.NumHiddenLayers}}
-        out:
-          - final_norm
-        config:
-          eps: {{.RMSNormEps}}
-        weights:
-          weight: model.norm.weight
-
-      - id: last_token
-        op: shape.last_token
-        in:
-          - final_norm
-        out:
-          - last_token
-
-      - id: lm_head
-        op: projection.linear
-        in:
-          - last_token
-        out:
-          - logits
-        config:
-          in_features: {{.HiddenSize}}
-          out_features: {{.VocabSize}}
-        weights:
-          weight: {{if .TieWordEmbeddings}}model.embed_tokens.weight{{else}}lm_head.weight{{end}}
-`
-
-// GenerateYAML converts a Hugging Face Config into a Manifesto YAML string.
+No new Go code per architecture. This is the §11.1 manifest-first
+contract for the HF loader; the symmetric anti-pattern (a *Generator
+type per model family) is enforced against by hf/scripts/check_banned.sh.
+*/
 func GenerateYAML(config *Config, source string) (string, error) {
 	if len(config.Architectures) == 0 {
-		return "", fmt.Errorf("no architectures found in config")
+		return "", fmt.Errorf("hfconfig: config.json has no architectures field")
 	}
 
-	arch := config.Architectures[0]
-	if !strings.Contains(strings.ToLower(arch), "llama") {
-		return "", fmt.Errorf("currently only Llama architectures are supported, got %s", arch)
-	}
+	className := config.Architectures[0]
 
-	tmpl, err := template.New("llama").Parse(llamaTemplate)
+	assetPath, err := ResolveArchitecture(className)
+
 	if err != nil {
-		return "", fmt.Errorf("failed to parse template: %w", err)
+		return "", err
 	}
 
-	headDim := config.HiddenSize / config.NumAttentionHeads
+	templateBytes, err := asset.ReadFile(assetPath)
+
+	if err != nil {
+		return "", fmt.Errorf(
+			"hfconfig: cannot read architecture template %q: %w",
+			assetPath, err,
+		)
+	}
+
+	parsedTemplate, err := template.New(className).Parse(string(templateBytes))
+
+	if err != nil {
+		return "", fmt.Errorf(
+			"hfconfig: cannot parse architecture template %q: %w",
+			assetPath, err,
+		)
+	}
+
+	variables := extractTemplateVariables(config, source)
+
+	var buffer bytes.Buffer
+
+	if err := parsedTemplate.Execute(&buffer, variables); err != nil {
+		return "", fmt.Errorf(
+			"hfconfig: cannot render architecture template %q: %w",
+			assetPath, err,
+		)
+	}
+
+	return buffer.String(), nil
+}
+
+/*
+templateVariables is the data passed to the Go template engine. All
+fields are populated from the HF Config plus a couple of derived values
+that the template needs (HeadDim, KVHiddenSize, IntermediateSizeHalf).
+
+This struct is intentionally a superset of what any single architecture
+template needs: each template references only the fields it cares
+about, and unreferenced fields are ignored harmlessly. New architecture
+templates that need fields not present here can have those fields added
+in one place rather than per-architecture.
+*/
+type templateVariables struct {
+	ModelType            string
+	ModelName            string
+	Source               string
+	VocabSize            int
+	HiddenSize           int
+	NumHiddenLayers      int
+	NumAttentionHeads    int
+	NumKeyValueHeads     int
+	RMSNormEps           float32
+	RopeTheta            float32
+	HeadDim              int
+	KVHiddenSize         int
+	IntermediateSize     int
+	IntermediateSizeHalf int
+	TieWordEmbeddings    bool
+}
+
+func extractTemplateVariables(config *Config, source string) templateVariables {
+	headDim := 0
+
+	if config.NumAttentionHeads > 0 {
+		headDim = config.HiddenSize / config.NumAttentionHeads
+	}
+
 	kvHiddenSize := config.NumKeyValueHeads * headDim
 
-	data := struct {
-		ModelType            string
-		ModelName            string
-		Source               string
-		VocabSize            int
-		HiddenSize           int
-		NumHiddenLayers      int
-		NumAttentionHeads    int
-		NumKeyValueHeads     int
-		RMSNormEps           float32
-		RopeTheta            float32
-		HeadDim              int
-		KVHiddenSize         int
-		IntermediateSize     int
-		IntermediateSizeHalf int
-		TieWordEmbeddings    bool
-	}{
+	intermediateSizeHalf := 0
+
+	if config.IntermediateSize > 0 {
+		intermediateSizeHalf = config.IntermediateSize / 2
+	}
+
+	className := ""
+
+	if len(config.Architectures) > 0 {
+		className = config.Architectures[0]
+	}
+
+	return templateVariables{
 		ModelType:            config.ModelType,
-		ModelName:            arch,
+		ModelName:            className,
 		Source:               source,
 		VocabSize:            config.VocabSize,
 		HiddenSize:           config.HiddenSize,
@@ -368,14 +135,7 @@ func GenerateYAML(config *Config, source string) (string, error) {
 		HeadDim:              headDim,
 		KVHiddenSize:         kvHiddenSize,
 		IntermediateSize:     config.IntermediateSize,
-		IntermediateSizeHalf: config.IntermediateSize / 2, // SwiGLU splits the intermediate size
+		IntermediateSizeHalf: intermediateSizeHalf,
 		TieWordEmbeddings:    config.TieWordEmbeddings,
 	}
-
-	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, data); err != nil {
-		return "", fmt.Errorf("failed to execute template: %w", err)
-	}
-
-	return buf.String(), nil
 }

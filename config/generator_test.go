@@ -40,3 +40,33 @@ func TestGenerateYAML(t *testing.T) {
 		t.Errorf("Expected vocab_size: 128256, got:\n%s", yamlStr)
 	}
 }
+
+func TestGenerateYAMLNoArchitecturesFails(t *testing.T) {
+	config := &Config{
+		Architectures: nil,
+	}
+
+	_, err := GenerateYAML(config, "irrelevant/source")
+	if err == nil {
+		t.Fatal("expected an error for a config with no architectures")
+	}
+
+	if !strings.Contains(err.Error(), "no architectures field") {
+		t.Errorf("expected error to mention missing architectures, got: %v", err)
+	}
+}
+
+func TestGenerateYAMLUnknownArchitectureFails(t *testing.T) {
+	config := &Config{
+		Architectures: []string{"DefinitelyNotAnArchitectureForCausalLM"},
+	}
+
+	_, err := GenerateYAML(config, "irrelevant/source")
+	if err == nil {
+		t.Fatal("expected an error for an unknown architecture")
+	}
+
+	if !strings.Contains(err.Error(), "DefinitelyNotAnArchitectureForCausalLM") {
+		t.Errorf("expected error to mention the unknown architecture, got: %v", err)
+	}
+}
