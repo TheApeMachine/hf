@@ -73,6 +73,10 @@ github.com/stretchr/testify v1.11.1 h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu
 github.com/stretchr/testify v1.11.1/go.mod h1:wZwfW3scLgRK+23gO65QZefKpKQRnfz6sD981Nm4B6U=
 github.com/theapemachine/errnie v1.2.0 h1:JhWyXp2x6kcW5iPyMTNGyor198W+/ltWdl4/Ltotg0k=
 github.com/theapemachine/errnie v1.2.0/go.mod h1:lzUJVUSJSrXRb0LmgwQtyxf6LupsXhrXTz2etTbAJlg=
+github.com/theapemachine/manifesto v1.2.2 h1:z75BAlltoR/VXB8AtsYWLKhP1UVLm8pQ143JZfWiA9c=
+github.com/theapemachine/manifesto v1.2.2/go.mod h1:hA155Md3vX1CyWtRmmJe/IwZ8AxRXoIgFsAyp9z/jXo=
+github.com/theapemachine/qpool v1.2.2 h1:LVEftxUC1J2rC6UqIA6q+pM1Ll38t9cKEExnFnn/g+U=
+github.com/theapemachine/qpool v1.2.2/go.mod h1:TuN0yFTlMFrW31PzKM6luR4OYgBQPNypVj8RMn5wIPY=
 github.com/tinylib/msgp v1.6.4 h1:mOwYbyYDLPj35mkA2BjjYejgJk9BuHxDdvRnb6v2ZcQ=
 github.com/tinylib/msgp v1.6.4/go.mod h1:RSp0LW9oSxFut3KzESt5Voq4GVWyS+PSulT77roAqEA=
 github.com/twpayne/go-geom v1.6.1 h1:iLE+Opv0Ihm/ABIcvQFGIiFBXd76oBIar9drAwHFhR4=

@@ -10,8 +10,8 @@ require (
 	github.com/gofiber/fiber/v3 v3.2.0
 	github.com/parquet-go/parquet-go v0.30.1
 	github.com/smartystreets/goconvey v1.8.1
-	github.com/theapemachine/manifesto v0.0.1
-	github.com/theapemachine/qpool v0.0.3
+	github.com/theapemachine/manifesto v1.2.2
+	github.com/theapemachine/qpool v1.2.2
 )
 
 require (
