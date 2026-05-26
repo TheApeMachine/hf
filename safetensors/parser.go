@@ -154,14 +154,17 @@ func (parser *Parser) tensorToken(
 		return types.Token{}, fmt.Errorf("safetensors: tensor %q offsets out of bounds", name)
 	}
 
+	shape := append([]int64(nil), entry.Shape...)
+
 	return types.Token{
 		Kind:      types.KindTensor,
 		Name:      name,
-		Shape:     append([]int64(nil), entry.Shape...),
+		Shape:     shape,
 		Precision: precision,
 		Span: types.Span{
 			Offset: offset,
 			Length: end - offset,
 		},
+		Role: Classify(name, shape, precision),
 	}, nil
 }
