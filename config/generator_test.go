@@ -51,7 +51,7 @@ func TestGenerateYAMLNoArchitecturesFails(t *testing.T) {
 		t.Fatal("expected an error for a config with no architectures")
 	}
 
-	if !strings.Contains(err.Error(), "no architectures field") {
+	if !strings.Contains(err.Error(), "no architecture class") {
 		t.Errorf("expected error to mention missing architectures, got: %v", err)
 	}
 }
@@ -68,5 +68,117 @@ func TestGenerateYAMLUnknownArchitectureFails(t *testing.T) {
 
 	if !strings.Contains(err.Error(), "DefinitelyNotAnArchitectureForCausalLM") {
 		t.Errorf("expected error to mention the unknown architecture, got: %v", err)
+	}
+}
+
+func TestGenerateYAMLDiffusersClassName(t *testing.T) {
+	config, err := ParseConfig(strings.NewReader(`{
+		"_class_name": "Flux2Transformer2DModel",
+		"attention_head_dim": 128,
+		"eps": 0.000001,
+		"in_channels": 128,
+		"joint_attention_dim": 7680,
+		"mlp_ratio": 3.0,
+		"num_attention_heads": 24,
+		"num_layers": 5,
+		"num_single_layers": 20,
+		"rope_theta": 2000
+	}`))
+	if err != nil {
+		t.Fatalf("ParseConfig failed: %v", err)
+	}
+
+	yamlStr, err := GenerateYAML(config, "hf://black-forest-labs/FLUX.2-klein-4B#transformer")
+	if err != nil {
+		t.Fatalf("GenerateYAML failed: %v", err)
+	}
+
+	if !strings.Contains(yamlStr, "op: block.model.flux2transformer2dmodel") {
+		t.Errorf("expected generated block wrapper, got:\n%s", yamlStr)
+	}
+
+	if !strings.Contains(yamlStr, "repeat: 5") {
+		t.Errorf("expected num_layers substitution, got:\n%s", yamlStr)
+	}
+
+	if !strings.Contains(yamlStr, "T: 4096") {
+		t.Errorf("expected topology sequence binding, got:\n%s", yamlStr)
+	}
+
+	if !strings.Contains(yamlStr, "out_features: 9216") {
+		t.Errorf("expected mlp_inner substitution, got:\n%s", yamlStr)
+	}
+
+	if strings.Contains(yamlStr, "${include.") {
+		t.Errorf("expected include variables to be resolved, got:\n%s", yamlStr)
+	}
+}
+
+func TestGenerateYAMLQwenTextEncoder(t *testing.T) {
+	config, err := ParseConfig(strings.NewReader(`{
+		"architectures": ["Qwen3ForCausalLM"],
+		"head_dim": 128,
+		"hidden_size": 2560,
+		"intermediate_size": 9728,
+		"model_type": "qwen3",
+		"num_attention_heads": 32,
+		"num_hidden_layers": 36,
+		"num_key_value_heads": 8,
+		"rms_norm_eps": 0.000001,
+		"rope_theta": 1000000,
+		"vocab_size": 151936
+	}`))
+	if err != nil {
+		t.Fatalf("ParseConfig failed: %v", err)
+	}
+
+	yamlStr, err := GenerateYAML(config, "hf://black-forest-labs/FLUX.2-klein-4B#text_encoder")
+	if err != nil {
+		t.Fatalf("GenerateYAML failed: %v", err)
+	}
+
+	if !strings.Contains(yamlStr, "repeat: \"36\"") {
+		t.Errorf("expected layer count substitution, got:\n%s", yamlStr)
+	}
+
+	if !strings.Contains(yamlStr, "out_features: 4096") {
+		t.Errorf("expected q projection width substitution, got:\n%s", yamlStr)
+	}
+
+	if !strings.Contains(yamlStr, "in: [\"h_34\", \"h_35\"]") {
+		t.Errorf("expected prompt layer substitution, got:\n%s", yamlStr)
+	}
+
+	if strings.Contains(yamlStr, "${include.") {
+		t.Errorf("expected include variables to be resolved, got:\n%s", yamlStr)
+	}
+}
+
+func TestGenerateYAMLAutoencoderBindings(t *testing.T) {
+	config, err := ParseConfig(strings.NewReader(`{
+		"_class_name": "AutoencoderKLFlux2",
+		"in_channels": 3,
+		"latent_channels": 32,
+		"sample_size": 1024
+	}`))
+	if err != nil {
+		t.Fatalf("ParseConfig failed: %v", err)
+	}
+
+	yamlStr, err := GenerateYAML(config, "hf://black-forest-labs/FLUX.2-klein-4B#vae")
+	if err != nil {
+		t.Fatalf("GenerateYAML failed: %v", err)
+	}
+
+	if !strings.Contains(yamlStr, "D: 128") {
+		t.Errorf("expected latent token width binding, got:\n%s", yamlStr)
+	}
+
+	if !strings.Contains(yamlStr, `shape: [1, 32, "128", "128"]`) {
+		t.Errorf("expected VAE spatial substitution, got:\n%s", yamlStr)
+	}
+
+	if strings.Contains(yamlStr, "${vae_spatial}") {
+		t.Errorf("expected VAE spatial variable to be resolved, got:\n%s", yamlStr)
 	}
 }

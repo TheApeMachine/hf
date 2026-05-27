@@ -3,7 +3,11 @@ package program
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
+	"io"
+	"path"
+	"strings"
 
 	hfconfig "github.com/theapemachine/hf/config"
 	"github.com/theapemachine/hf/hub"
@@ -66,7 +70,7 @@ func (resolver *IncludeResolver) ResolveInclude(
 	ctx context.Context,
 	include compiler.IncludeSource,
 ) ([]byte, error) {
-	repoID, _, ok := compiler.ParseHFReference(include.Source)
+	repoID, component, ok := compiler.ParseHFReference(include.Source)
 
 	if !ok {
 		return nil, fmt.Errorf(
@@ -77,11 +81,11 @@ func (resolver *IncludeResolver) ResolveInclude(
 
 	location := hub.ManifestRepoLocation(repoID, resolver.revision, resolver.token)
 
-	reader, _, err := resolver.hub.Open(ctx, location, "config.json", resolver.cacheDir)
+	reader, configPath, err := resolver.openConfig(ctx, location, component)
 
 	if err != nil {
 		return nil, fmt.Errorf(
-			"hf include resolver: open config.json for %q: %w",
+			"hf include resolver: open config for %q: %w",
 			repoID, err,
 		)
 	}
@@ -92,8 +96,8 @@ func (resolver *IncludeResolver) ResolveInclude(
 
 	if err != nil {
 		return nil, fmt.Errorf(
-			"hf include resolver: parse config.json for %q: %w",
-			repoID, err,
+			"hf include resolver: parse %s for %q: %w",
+			configPath, repoID, err,
 		)
 	}
 
@@ -110,6 +114,46 @@ func (resolver *IncludeResolver) ResolveInclude(
 }
 
 var _ compiler.IncludeResolver = (*IncludeResolver)(nil)
+
+func (resolver *IncludeResolver) openConfig(
+	ctx context.Context,
+	location resolve.RepoLocation,
+	component string,
+) (io.ReadCloser, string, error) {
+	configPaths := configPathCandidates(component)
+	openErrors := make([]error, 0, len(configPaths))
+
+	for _, configPath := range configPaths {
+		reader, _, err := resolver.hub.Open(ctx, location, configPath, resolver.cacheDir)
+
+		if err == nil {
+			return reader, configPath, nil
+		}
+
+		openErrors = append(openErrors, fmt.Errorf("%s: %w", configPath, err))
+	}
+
+	return nil, "", errors.Join(openErrors...)
+}
+
+func configPathCandidates(component string) []string {
+	component = strings.TrimSpace(component)
+
+	if isPipelineComponent(component) {
+		return []string{path.Join(component, "config.json")}
+	}
+
+	return []string{"config.json"}
+}
+
+func isPipelineComponent(component string) bool {
+	switch component {
+	case "text_encoder", "text_encoder_2", "transformer", "vae":
+		return true
+	}
+
+	return false
+}
 
 /*
 NewBlockYAMLReader is a small helper that wraps already-resolved block YAML

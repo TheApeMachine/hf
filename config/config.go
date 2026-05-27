@@ -12,8 +12,10 @@ It contains the architectural parameters needed to dynamically
 generate a manifesto AST.
 */
 type Config struct {
-	Architectures []string `json:"architectures"`
-	ModelType     string   `json:"model_type"`
+	Architectures []string       `json:"architectures"`
+	ClassName     string         `json:"_class_name"`
+	ModelType     string         `json:"model_type"`
+	Raw           map[string]any `json:"-"`
 
 	// Common Transformer parameters
 	VocabSize         int     `json:"vocab_size"`
@@ -43,9 +45,26 @@ func ParseConfig(reader io.Reader) (*Config, error) {
 		return nil, fmt.Errorf("hfconfig parse: failed to read config: %w", err)
 	}
 
+	var raw map[string]any
+	if err := json.Unmarshal(bytes, &raw); err != nil {
+		return nil, fmt.Errorf("hfconfig parse: failed to unmarshal raw json: %w", err)
+	}
+
 	var config Config
 	if err := json.Unmarshal(bytes, &config); err != nil {
 		return nil, fmt.Errorf("hfconfig parse: failed to unmarshal json: %w", err)
+	}
+
+	config.Raw = raw
+
+	if config.ClassName == "" {
+		if className, ok := raw["_class_name"].(string); ok {
+			config.ClassName = className
+		}
+	}
+
+	if len(config.Architectures) == 0 && config.ClassName != "" {
+		config.Architectures = []string{config.ClassName}
 	}
 
 	// Set defaults for missing fields
@@ -63,4 +82,24 @@ func ParseConfig(reader io.Reader) (*Config, error) {
 	}
 
 	return &config, nil
+}
+
+/*
+ArchitectureName returns the Hugging Face architecture class declared by
+the config document.
+*/
+func (config *Config) ArchitectureName() (string, error) {
+	if config == nil {
+		return "", fmt.Errorf("hfconfig: config is required")
+	}
+
+	if len(config.Architectures) > 0 && config.Architectures[0] != "" {
+		return config.Architectures[0], nil
+	}
+
+	if config.ClassName != "" {
+		return config.ClassName, nil
+	}
+
+	return "", fmt.Errorf("hfconfig: config.json has no architecture class")
 }

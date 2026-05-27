@@ -3,8 +3,11 @@ package hfconfig
 import (
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/theapemachine/manifesto/asset"
+	"github.com/theapemachine/manifesto/ast"
+	"gopkg.in/yaml.v3"
 )
 
 /*
@@ -71,9 +74,17 @@ func ResolveArchitecture(className string) (string, error) {
 		return assetPath, nil
 	}
 
+	if entry, exists := manifestRegistryEntry(className); exists {
+		return registryIncludePath(entry.Include), nil
+	}
+
 	supported := make([]string, 0, len(architectureRegistry))
 
 	for name := range architectureRegistry {
+		supported = append(supported, name)
+	}
+
+	for name := range manifestRegistryEntries() {
 		supported = append(supported, name)
 	}
 
@@ -89,6 +100,20 @@ func ResolveArchitecture(className string) (string, error) {
 }
 
 /*
+ArchitectureVariables returns registry-declared variable bindings for an
+architecture class.
+*/
+func ArchitectureVariables(className string) map[string]ast.Binding {
+	entry, exists := manifestRegistryEntry(className)
+
+	if !exists {
+		return nil
+	}
+
+	return entry.Variables
+}
+
+/*
 SupportedArchitectures returns the sorted list of HF architecture class
 names the registry knows about. Useful for diagnostics and for tests
 that want to assert coverage.
@@ -100,7 +125,50 @@ func SupportedArchitectures() []string {
 		names = append(names, name)
 	}
 
+	for name := range manifestRegistryEntries() {
+		names = append(names, name)
+	}
+
 	sort.Strings(names)
 
 	return names
+}
+
+func manifestRegistryEntry(className string) (ast.RegistryEntry, bool) {
+	entry, exists := manifestRegistryEntries()[className]
+
+	return entry, exists
+}
+
+func manifestRegistryEntries() map[string]ast.RegistryEntry {
+	raw, err := asset.ReadFile("model/architecture/registry.yml")
+
+	if err != nil {
+		return nil
+	}
+
+	document := struct {
+		Architectures map[string]ast.RegistryEntry `yaml:"architectures"`
+	}{}
+
+	if err := yaml.Unmarshal(raw, &document); err != nil {
+		return nil
+	}
+
+	return document.Architectures
+}
+
+func registryIncludePath(include string) string {
+	if strings.HasSuffix(include, ".yml") {
+		return include
+	}
+
+	if !strings.HasPrefix(include, "model.") {
+		return include + ".yml"
+	}
+
+	suffix := strings.TrimPrefix(include, "model.")
+	normalized := strings.NewReplacer(".", "/", "_", "/").Replace(suffix)
+
+	return "model/" + normalized + ".yml"
 }
