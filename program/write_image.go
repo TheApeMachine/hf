@@ -10,7 +10,9 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/theapemachine/manifesto/dtype/convert"
 	"github.com/theapemachine/manifesto/runtime"
+	"github.com/theapemachine/manifesto/tensor"
 )
 
 /*
@@ -98,6 +100,20 @@ func float32ImageValues(value any) ([]float32, error) {
 
 		for index, element := range typed {
 			values[index] = float32(element)
+		}
+
+		return values, nil
+	case tensor.Tensor:
+		dataType, rawBytes, err := typed.RawBytes()
+
+		if err != nil {
+			return nil, fmt.Errorf("program host: read image tensor bytes: %w", err)
+		}
+
+		values, err := convert.BytesToFloat32(dataType, rawBytes)
+
+		if err != nil {
+			return nil, fmt.Errorf("program host: decode image tensor bytes: %w", err)
 		}
 
 		return values, nil

@@ -307,6 +307,9 @@ func seedDerivedVariables(variables map[string]any, config *Config) {
 	setIfMissing(variables, "packed_side", latentSide)
 	setIfMissing(variables, "latent_token_dim", 128)
 	setIfMissing(variables, "vae_spatial", vaeSpatial(variables))
+	setIfMissing(variables, "mid_attn_tokens", productOfVariables(
+		variables, "vae_spatial", "vae_spatial",
+	))
 }
 
 func setEpsVariable(variables map[string]any, config *Config) {

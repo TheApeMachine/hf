@@ -109,6 +109,18 @@ func TestGenerateYAMLDiffusersClassName(t *testing.T) {
 		t.Errorf("expected mlp_inner substitution, got:\n%s", yamlStr)
 	}
 
+	if !strings.Contains(yamlStr, "inputs: [hidden_states, encoder_hidden_states, timestep, guidance]") {
+		t.Errorf("expected FLUX2 guidance boundary, got:\n%s", yamlStr)
+	}
+
+	if !strings.Contains(yamlStr, "time_guidance_embed.guidance_embedder.linear_1") {
+		t.Errorf("expected FLUX2 guidance embedder nodes, got:\n%s", yamlStr)
+	}
+
+	if !strings.Contains(yamlStr, "timestep_divisor: 1") {
+		t.Errorf("expected unscaled FLUX2 timestep embedding config, got:\n%s", yamlStr)
+	}
+
 	if strings.Contains(yamlStr, "${include.") {
 		t.Errorf("expected include variables to be resolved, got:\n%s", yamlStr)
 	}
@@ -180,5 +192,13 @@ func TestGenerateYAMLAutoencoderBindings(t *testing.T) {
 
 	if strings.Contains(yamlStr, "${vae_spatial}") {
 		t.Errorf("expected VAE spatial variable to be resolved, got:\n%s", yamlStr)
+	}
+
+	if !strings.Contains(yamlStr, `shape: [1, "16384", 512]`) {
+		t.Errorf("expected VAE mid attention token count substitution, got:\n%s", yamlStr)
+	}
+
+	if strings.Contains(yamlStr, "${mid_attn_tokens}") {
+		t.Errorf("expected VAE mid attention token variable to be resolved, got:\n%s", yamlStr)
 	}
 }
