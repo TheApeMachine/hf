@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 /*
@@ -121,7 +122,9 @@ func (metadata *Metadata) renderChat(
 	if includeSystem {
 		builder.WriteString("<|start_header_id|>system<|end_header_id|>\n\n")
 		builder.WriteString("Cutting Knowledge Date: December 2023\n")
-		builder.WriteString("Today Date: 26 Jul 2024\n\n")
+		builder.WriteString("Today Date: ")
+		builder.WriteString(time.Now().Format("2 Jan 2006"))
+		builder.WriteString("\n\n")
 		builder.WriteString(metadata.EOTToken)
 	}
 

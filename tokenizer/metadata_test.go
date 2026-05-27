@@ -2,6 +2,7 @@ package tokenizer
 
 import (
 	"testing"
+	"time"
 
 	. "github.com/smartystreets/goconvey/convey"
 )
@@ -16,9 +17,14 @@ func TestMetadataApplyChatTemplate(test *testing.T) {
 
 		Convey("It should render the user message and assistant generation prompt", func() {
 			text, err := metadata.ApplyChatTemplate(" hello ")
+			todayDate := time.Now().Format("2 Jan 2006")
+			expected := "<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\n" +
+				"Cutting Knowledge Date: December 2023\nToday Date: " + todayDate + "\n\n" +
+				"<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n" +
+				"hello<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
 
 			So(err, ShouldBeNil)
-			So(text, ShouldEqual, "<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\nCutting Knowledge Date: December 2023\nToday Date: 26 Jul 2024\n\n<|eot_id|><|start_header_id|>user<|end_header_id|>\n\nhello<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n")
+			So(text, ShouldEqual, expected)
 		})
 
 		Convey("It should render a continuation without a new beginning token", func() {

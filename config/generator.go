@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"text/template"
+	"time"
 
 	"github.com/theapemachine/manifesto/asset"
 )
@@ -111,6 +112,8 @@ type templateVariables struct {
 	IntermediateSize     int
 	IntermediateSizeHalf int
 	TieWordEmbeddings    bool
+	// TodayDate is the current calendar date in Llama-3 prompt style (e.g. "26 Jul 2024").
+	TodayDate string
 }
 
 func extractTemplateVariables(config *Config, source string) templateVariables {
@@ -150,5 +153,6 @@ func extractTemplateVariables(config *Config, source string) templateVariables {
 		IntermediateSize:     config.IntermediateSize,
 		IntermediateSizeHalf: intermediateSizeHalf,
 		TieWordEmbeddings:    config.TieWordEmbeddings,
+		TodayDate:            time.Now().Format("2 Jan 2006"),
 	}
 }
