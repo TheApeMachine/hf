@@ -3,6 +3,8 @@ package hfconfig
 import (
 	"fmt"
 	"sort"
+
+	"github.com/theapemachine/manifesto/asset"
 )
 
 /*
@@ -39,6 +41,22 @@ e.g. "loader/architecture/MyArchForCausalLM.yml".
 */
 func RegisterArchitecture(className, assetPath string) {
 	architectureRegistry[className] = assetPath
+}
+
+/*
+ResolveArchitecturePath returns the loader template for one HF class name
+and an optional manifest component suffix (e.g. paged_decode).
+*/
+func ResolveArchitecturePath(className, component string) (string, error) {
+	if component != "" {
+		variantPath := fmt.Sprintf("loader/architecture/%s_%s.yml", className, component)
+
+		if _, err := asset.ReadFile(variantPath); err == nil {
+			return variantPath, nil
+		}
+	}
+
+	return ResolveArchitecture(className)
 }
 
 /*

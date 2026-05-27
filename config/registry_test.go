@@ -15,6 +15,13 @@ func TestResolveArchitectureLlama(t *testing.T) {
 			convey.So(err, convey.ShouldBeNil)
 			convey.So(assetPath, convey.ShouldEqual, "loader/architecture/LlamaForCausalLM.yml")
 		})
+
+		convey.Convey("LlamaForCausalLM paged_decode variant resolves to its template path", func() {
+			assetPath, err := ResolveArchitecturePath("LlamaForCausalLM", "paged_decode")
+
+			convey.So(err, convey.ShouldBeNil)
+			convey.So(assetPath, convey.ShouldEqual, "loader/architecture/LlamaForCausalLM_paged_decode.yml")
+		})
 	})
 }
 

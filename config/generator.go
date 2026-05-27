@@ -3,6 +3,7 @@ package hfconfig
 import (
 	"bytes"
 	"fmt"
+	"strings"
 	"text/template"
 
 	"github.com/theapemachine/manifesto/asset"
@@ -33,7 +34,9 @@ func GenerateYAML(config *Config, source string) (string, error) {
 
 	className := config.Architectures[0]
 
-	assetPath, err := ResolveArchitecture(className)
+	_, component := parseSourceComponent(source)
+
+	assetPath, err := ResolveArchitecturePath(className, component)
 
 	if err != nil {
 		return "", err
@@ -69,6 +72,16 @@ func GenerateYAML(config *Config, source string) (string, error) {
 	}
 
 	return buffer.String(), nil
+}
+
+func parseSourceComponent(source string) (repoID, component string) {
+	hashIndex := strings.LastIndex(source, "#")
+
+	if hashIndex < 0 {
+		return source, ""
+	}
+
+	return source[:hashIndex], source[hashIndex+1:]
 }
 
 /*
