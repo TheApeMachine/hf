@@ -132,6 +132,7 @@ type templateVariables struct {
 	IntermediateSize     int
 	IntermediateSizeHalf int
 	TieWordEmbeddings    bool
+	GuidanceEmbeds       bool
 	// TodayDate is the current calendar date in Llama-3 prompt style (e.g. "26 Jul 2024").
 	TodayDate string
 }
@@ -173,8 +174,21 @@ func extractTemplateVariables(config *Config, source string) templateVariables {
 		IntermediateSize:     config.IntermediateSize,
 		IntermediateSizeHalf: intermediateSizeHalf,
 		TieWordEmbeddings:    config.TieWordEmbeddings,
+		GuidanceEmbeds:       boolVariable(config.Raw, "guidance_embeds"),
 		TodayDate:            time.Now().Format("2 Jan 2006"),
 	}
+}
+
+func boolVariable(variables map[string]any, name string) bool {
+	raw, ok := variables[name]
+
+	if !ok {
+		return false
+	}
+
+	value, ok := raw.(bool)
+
+	return ok && value
 }
 
 func renderManifestVariables(
@@ -221,6 +235,10 @@ func includeVariables(config *Config, className string) (map[string]any, error) 
 
 	seedDerivedVariables(variables, config)
 
+	if err := seedAxisDimsVariables(variables); err != nil {
+		return nil, err
+	}
+
 	for name, binding := range ArchitectureVariables(className) {
 		value, err := evaluateBinding(binding, variables)
 
@@ -232,6 +250,10 @@ func includeVariables(config *Config, className string) (map[string]any, error) 
 	}
 
 	seedDerivedVariables(variables, config)
+
+	if err := seedAxisDimsVariables(variables); err != nil {
+		return nil, err
+	}
 
 	return variables, nil
 }

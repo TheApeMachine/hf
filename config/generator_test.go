@@ -75,6 +75,7 @@ func TestGenerateYAMLDiffusersClassName(t *testing.T) {
 	config, err := ParseConfig(strings.NewReader(`{
 		"_class_name": "Flux2Transformer2DModel",
 		"attention_head_dim": 128,
+		"axes_dims_rope": [32, 32, 32, 32],
 		"eps": 0.000001,
 		"in_channels": 128,
 		"joint_attention_dim": 7680,
@@ -109,20 +110,61 @@ func TestGenerateYAMLDiffusersClassName(t *testing.T) {
 		t.Errorf("expected mlp_inner substitution, got:\n%s", yamlStr)
 	}
 
-	if !strings.Contains(yamlStr, "inputs: [hidden_states, encoder_hidden_states, timestep, guidance]") {
-		t.Errorf("expected FLUX2 guidance boundary, got:\n%s", yamlStr)
-	}
-
-	if !strings.Contains(yamlStr, "time_guidance_embed.guidance_embedder.linear_1") {
-		t.Errorf("expected FLUX2 guidance embedder nodes, got:\n%s", yamlStr)
+	if !strings.Contains(yamlStr, "inputs: [hidden_states, encoder_hidden_states, timestep]") {
+		t.Errorf("expected FLUX2 timestep boundary, got:\n%s", yamlStr)
 	}
 
 	if !strings.Contains(yamlStr, "timestep_divisor: 1") {
 		t.Errorf("expected unscaled FLUX2 timestep embedding config, got:\n%s", yamlStr)
 	}
 
+	if !strings.Contains(yamlStr, "axis_count: 4") {
+		t.Errorf("expected HF RoPE axis count substitution, got:\n%s", yamlStr)
+	}
+
+	if !strings.Contains(yamlStr, "axis_dim_3: 32") {
+		t.Errorf("expected HF RoPE axis dimension substitution, got:\n%s", yamlStr)
+	}
+
+	if strings.Contains(yamlStr, "time_guidance_embed.guidance_embedder.linear_1") {
+		t.Errorf("did not expect FLUX2 guidance embedder nodes without guidance_embeds config, got:\n%s", yamlStr)
+	}
+
 	if strings.Contains(yamlStr, "${include.") {
 		t.Errorf("expected include variables to be resolved, got:\n%s", yamlStr)
+	}
+}
+
+func TestGenerateYAMLFlux2GuidanceEmbeds(t *testing.T) {
+	config, err := ParseConfig(strings.NewReader(`{
+		"_class_name": "Flux2Transformer2DModel",
+		"attention_head_dim": 128,
+		"axes_dims_rope": [32, 32, 32, 32],
+		"eps": 0.000001,
+		"guidance_embeds": true,
+		"in_channels": 128,
+		"joint_attention_dim": 7680,
+		"mlp_ratio": 3.0,
+		"num_attention_heads": 24,
+		"num_layers": 5,
+		"num_single_layers": 20,
+		"rope_theta": 2000
+	}`))
+	if err != nil {
+		t.Fatalf("ParseConfig failed: %v", err)
+	}
+
+	yamlStr, err := GenerateYAML(config, "hf://black-forest-labs/FLUX.2-dev#transformer")
+	if err != nil {
+		t.Fatalf("GenerateYAML failed: %v", err)
+	}
+
+	if !strings.Contains(yamlStr, "inputs: [hidden_states, encoder_hidden_states, timestep, guidance]") {
+		t.Errorf("expected FLUX2 guidance boundary, got:\n%s", yamlStr)
+	}
+
+	if !strings.Contains(yamlStr, "time_guidance_embed.guidance_embedder.linear_1") {
+		t.Errorf("expected FLUX2 guidance embedder nodes, got:\n%s", yamlStr)
 	}
 }
 
