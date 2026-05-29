@@ -86,7 +86,7 @@ In addition to the shared contract in `../puter/AGENTS.md`:
 
 - **Per-architecture `*Generator` types or functions.** Enforced by `scripts/check_banned.sh §1`.
 - **Architecture-name string switches** that route to Go (`case "LlamaForCausalLM": llamaForward()`). The switch must resolve to a YAML template path. Enforced by §2.
-- **Heuristic `OperationLookup` rules without shape/dtype validation.** Substring matching tensor names is OK as a first cut; silently mapping to the wrong op when the shape doesn't match the spec is not. Add validation when the lookup fires.
+- **Heuristic checkpoint-to-operation mapping in `safetensors/`.** The safetensors parser only yields `types.Token`; topology recipes and `types.OperationRegistry` bind tokens to manifest ops and `device.Backend` methods.
 
 ---
 

@@ -10,55 +10,64 @@ import (
 	"github.com/theapemachine/manifesto/types"
 )
 
+var _ types.Parser = (*Parser)(nil)
+
 /*
 Parser walks a safetensors archive index and yields normalized tokens.
+It implements manifesto/types.Parser and performs no operation or role
+classification — checkpoint keys are emitted as-is for downstream
+topology binding.
 */
 type Parser struct {
-	archive []byte
+	tokens []types.Token
 }
 
 /*
-NewParser constructs a parser over an in-memory safetensors archive.
+NewParser parses a safetensors archive header and constructs a token stream.
 */
 func NewParser(archive []byte) (*Parser, error) {
-	if len(archive) == 0 {
-		return nil, fmt.Errorf("safetensors: archive is required")
-	}
-
-	return &Parser{archive: archive}, nil
-}
-
-/*
-Generate returns an iterator over header tokens.
-*/
-func (parser *Parser) Generate() (iter.Seq[types.Token], error) {
-	tokens, err := parser.tokens()
+	tokens, err := parseArchive(archive)
 
 	if err != nil {
 		return nil, err
 	}
 
+	return &Parser{tokens: tokens}, nil
+}
+
+/*
+Generate yields every metadata and tensor token from the archive index.
+*/
+func (parser *Parser) Generate() iter.Seq[types.Token] {
 	return func(yield func(types.Token) bool) {
-		for _, token := range tokens {
+		if parser == nil {
+			return
+		}
+
+		for _, token := range parser.tokens {
 			if !yield(token) {
 				return
 			}
 		}
-	}, nil
+	}
 }
 
-func (parser *Parser) tokens() ([]types.Token, error) {
-	if len(parser.archive) < 8 {
+func parseArchive(archive []byte) ([]types.Token, error) {
+	if len(archive) == 0 {
+		return nil, fmt.Errorf("safetensors: archive is required")
+	}
+
+	if len(archive) < 8 {
 		return nil, fmt.Errorf("safetensors: file too small")
 	}
 
-	headerLength := binary.LittleEndian.Uint64(parser.archive[:8])
+	headerLength := binary.LittleEndian.Uint64(archive[:8])
 
-	if uint64(len(parser.archive)) < 8+headerLength {
+	if uint64(len(archive)) < 8+headerLength {
 		return nil, fmt.Errorf("safetensors: truncated header")
 	}
 
-	headerBytes := parser.archive[8 : 8+headerLength]
+	headerBytes := archive[8 : 8+headerLength]
 
 	if len(headerBytes) == 0 || headerBytes[0] != '{' {
 		return nil, fmt.Errorf("safetensors: header must begin with '{'")
@@ -70,12 +79,12 @@ func (parser *Parser) tokens() ([]types.Token, error) {
 		return nil, fmt.Errorf("safetensors: parse header: %w", err)
 	}
 
-	dataLength := int64(len(parser.archive)) - int64(8+headerLength)
+	dataLength := int64(len(archive)) - int64(8+headerLength)
 	tokens := make([]types.Token, 0, len(fields))
 
 	for name, rawField := range fields {
 		if name == "__metadata__" {
-			metadataTokens, err := parser.metadataTokens(rawField)
+			metadataTokens, err := metadataTokens(rawField)
 
 			if err != nil {
 				return nil, err
@@ -86,7 +95,7 @@ func (parser *Parser) tokens() ([]types.Token, error) {
 			continue
 		}
 
-		token, err := parser.tensorToken(name, rawField, dataLength)
+		token, err := tensorToken(name, rawField, dataLength)
 
 		if err != nil {
 			return nil, err
@@ -98,7 +107,7 @@ func (parser *Parser) tokens() ([]types.Token, error) {
 	return tokens, nil
 }
 
-func (parser *Parser) metadataTokens(raw json.RawMessage) ([]types.Token, error) {
+func metadataTokens(raw json.RawMessage) ([]types.Token, error) {
 	var metadata map[string]string
 
 	if err := json.Unmarshal(raw, &metadata); err != nil {
@@ -118,7 +127,7 @@ func (parser *Parser) metadataTokens(raw json.RawMessage) ([]types.Token, error)
 	return tokens, nil
 }
 
-func (parser *Parser) tensorToken(
+func tensorToken(
 	name string,
 	raw json.RawMessage,
 	dataLength int64,
@@ -154,17 +163,14 @@ func (parser *Parser) tensorToken(
 		return types.Token{}, fmt.Errorf("safetensors: tensor %q offsets out of bounds", name)
 	}
 
-	shape := append([]int64(nil), entry.Shape...)
-
 	return types.Token{
 		Kind:      types.KindTensor,
 		Name:      name,
-		Shape:     shape,
+		Shape:     append([]int64(nil), entry.Shape...),
 		Precision: precision,
 		Span: types.Span{
 			Offset: offset,
 			Length: end - offset,
 		},
-		Role: Classify(name, shape, precision),
 	}, nil
 }
