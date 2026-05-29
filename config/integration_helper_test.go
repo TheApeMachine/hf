@@ -21,7 +21,7 @@ include:
 
 	resolver := &fixedResolver{payload: []byte(blockYAML)}
 
-	programCompiler, err := compiler.NewProgramCompiler(compiler.NewPool(nil))
+	programCompiler, err := compiler.NewProgramCompiler(context.Background(), compiler.NewPool(nil))
 
 	if err != nil {
 		return nil, err
