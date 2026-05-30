@@ -88,7 +88,8 @@ func GenerateYAML(config *Config, source string) (string, error) {
 
 	rendered := buffer.String()
 
-	if strings.HasPrefix(assetPath, "model/architecture/") {
+	if strings.HasPrefix(assetPath, "model/architecture/") ||
+		strings.HasPrefix(assetPath, "loader/architecture/") {
 		return wrapTopologyYAML(assetPath, rendered, className, includeVars)
 	}
 
@@ -431,7 +432,8 @@ func wrapTopologyYAML(
 	className string,
 	variables map[string]any,
 ) (string, error) {
-	if !strings.HasPrefix(assetPath, "model/architecture/") {
+	if !strings.HasPrefix(assetPath, "model/architecture/") &&
+		!strings.HasPrefix(assetPath, "loader/architecture/") {
 		return rendered, nil
 	}
 
