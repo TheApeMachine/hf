@@ -56,6 +56,33 @@ func TestParserGenerateNamedCheckpointTensors(t *testing.T) {
 	})
 }
 
+func TestParserGenerateSkipsScalarBuffers(t *testing.T) {
+	convey.Convey("Given a safetensors archive with a zero-rank buffer tensor", t, func() {
+		header := map[string]any{
+			"weight": map[string]any{
+				"dtype":        "F32",
+				"shape":        []int64{4},
+				"data_offsets": []int64{0, 16},
+			},
+			"bn.num_batches_tracked": map[string]any{
+				"dtype":        "I64",
+				"shape":        []int64{},
+				"data_offsets": []int64{16, 24},
+			},
+		}
+
+		parser, err := NewParser(marshalArchive(t, header, 24))
+		convey.So(err, convey.ShouldBeNil)
+
+		tokens := collectTokens(parser.Generate())
+
+		convey.Convey("It should omit non-shaped checkpoint buffers", func() {
+			convey.So(len(tokens), convey.ShouldEqual, 1)
+			convey.So(tokens[0].Name, convey.ShouldEqual, "weight")
+		})
+	})
+}
+
 func TestNewParserRejectsInvalidArchive(t *testing.T) {
 	convey.Convey("Given an empty archive", t, func() {
 		_, err := NewParser(nil)

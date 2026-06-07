@@ -95,10 +95,14 @@ func parseArchive(archive []byte) ([]types.Token, error) {
 			continue
 		}
 
-		token, err := tensorToken(name, rawField, dataLength)
+		token, skip, err := tensorToken(name, rawField, dataLength)
 
 		if err != nil {
 			return nil, err
+		}
+
+		if skip {
+			continue
 		}
 
 		tokens = append(tokens, token)
@@ -131,7 +135,7 @@ func tensorToken(
 	name string,
 	raw json.RawMessage,
 	dataLength int64,
-) (types.Token, error) {
+) (types.Token, bool, error) {
 	var entry struct {
 		DType       string   `json:"dtype"`
 		Shape       []int64  `json:"shape"`
@@ -139,28 +143,28 @@ func tensorToken(
 	}
 
 	if err := json.Unmarshal(raw, &entry); err != nil {
-		return types.Token{}, fmt.Errorf("safetensors: parse tensor %q: %w", name, err)
+		return types.Token{}, false, fmt.Errorf("safetensors: parse tensor %q: %w", name, err)
 	}
 
 	if entry.DType == "" {
-		return types.Token{}, fmt.Errorf("safetensors: tensor %q missing dtype", name)
+		return types.Token{}, false, fmt.Errorf("safetensors: tensor %q missing dtype", name)
 	}
 
 	precision, err := dtype.Parse(entry.DType)
 
 	if err != nil {
-		return types.Token{}, fmt.Errorf("safetensors: tensor %q dtype: %w", name, err)
+		return types.Token{}, false, fmt.Errorf("safetensors: tensor %q dtype: %w", name, err)
 	}
 
 	if len(entry.Shape) == 0 {
-		return types.Token{}, fmt.Errorf("safetensors: tensor %q missing shape", name)
+		return types.Token{}, true, nil
 	}
 
 	offset := entry.DataOffsets[0]
 	end := entry.DataOffsets[1]
 
 	if offset < 0 || end < offset || end > dataLength {
-		return types.Token{}, fmt.Errorf("safetensors: tensor %q offsets out of bounds", name)
+		return types.Token{}, false, fmt.Errorf("safetensors: tensor %q offsets out of bounds", name)
 	}
 
 	return types.Token{
@@ -172,5 +176,5 @@ func tensorToken(
 			Offset: offset,
 			Length: end - offset,
 		},
-	}, nil
+	}, false, nil
 }
