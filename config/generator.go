@@ -88,12 +88,66 @@ func GenerateYAML(config *Config, source string) (string, error) {
 
 	rendered := buffer.String()
 
+	if isFullBlockYAML(rendered) {
+		return injectBlockTopologyBindings(rendered, includeVars)
+	}
+
 	if strings.HasPrefix(assetPath, "model/architecture/") ||
 		strings.HasPrefix(assetPath, "loader/architecture/") {
-		return wrapTopologyYAML(assetPath, rendered, className, includeVars)
+		topologyYAML, err := extractTopologySection(rendered)
+
+		if err != nil {
+			return "", err
+		}
+
+		return wrapTopologyYAML(assetPath, topologyYAML, className, includeVars)
 	}
 
 	return injectBlockTopologyBindings(rendered, includeVars)
+}
+
+func isFullBlockYAML(rendered string) bool {
+	trimmed := strings.TrimSpace(rendered)
+
+	return strings.HasPrefix(trimmed, "kind: Block\n") ||
+		strings.HasPrefix(trimmed, "kind: Block\r\n")
+}
+
+func extractTopologySection(rendered string) (string, error) {
+	document := struct {
+		Topology yaml.Node `yaml:"topology"`
+		System   struct {
+			Topology yaml.Node `yaml:"topology"`
+		} `yaml:"system"`
+	}{}
+
+	if err := yaml.Unmarshal([]byte(rendered), &document); err != nil {
+		return "", fmt.Errorf("hfconfig: parse architecture topology section: %w", err)
+	}
+
+	sourceNode := document.Topology
+
+	if sourceNode.Kind == 0 {
+		sourceNode = document.System.Topology
+	}
+
+	if sourceNode.Kind == 0 {
+		return rendered, nil
+	}
+
+	var buffer bytes.Buffer
+	encoder := yaml.NewEncoder(&buffer)
+	encoder.SetIndent(2)
+
+	if err := encoder.Encode(&sourceNode); err != nil {
+		return "", fmt.Errorf("hfconfig: encode architecture topology section: %w", err)
+	}
+
+	if err := encoder.Close(); err != nil {
+		return "", fmt.Errorf("hfconfig: close architecture topology encoder: %w", err)
+	}
+
+	return buffer.String(), nil
 }
 
 func parseSourceComponent(source string) (repoID, component string) {
@@ -478,6 +532,10 @@ func injectBlockTopologyBindings(rendered string, variables map[string]any) (str
 		return "", fmt.Errorf("hfconfig: generated block has topology bindings but no topology section")
 	}
 
+	if strings.Contains(rendered[index:], "    bindings:") {
+		return rendered, nil
+	}
+
 	var buffer strings.Builder
 
 	buffer.WriteString(rendered[:index])
@@ -551,6 +609,14 @@ func topologyBindings(rendered string, variables map[string]any) map[string]int6
 		setBinding(bindings, "E", variables["joint_attention_dim"])
 	}
 
+	if inputs["key_pages"] || inputs["value_pages"] {
+		setBinding(bindings, "L", variables["num_hidden_layers"])
+		setBinding(bindings, "KVH", variables["num_key_value_heads"])
+		setBinding(bindings, "HD", variables["head_dim"])
+		setBinding(bindings, "B", firstNumber(variables["batch_size"], literalNumber(1)))
+		setBinding(bindings, "T", firstNumber(variables["seq_len"], literalNumber(1)))
+	}
+
 	return bindings
 }
 
@@ -600,6 +666,38 @@ func setBinding(bindings map[string]int64, symbol string, value any) {
 }
 
 func topologyOutputNames(rendered string) ([]string, error) {
+	blockDocument := struct {
+		Outputs []any `yaml:"outputs"`
+		System  struct {
+			Topology struct {
+				Outputs []any      `yaml:"outputs"`
+				Nodes   []ast.Node `yaml:"nodes"`
+			} `yaml:"topology"`
+		} `yaml:"system"`
+	}{}
+
+	if err := yaml.Unmarshal([]byte(rendered), &blockDocument); err == nil {
+		names := collectNamedPortList(blockDocument.Outputs)
+
+		if len(names) > 0 {
+			return names, nil
+		}
+
+		names = collectNamedPortList(blockDocument.System.Topology.Outputs)
+
+		if len(names) > 0 {
+			return names, nil
+		}
+
+		if len(blockDocument.System.Topology.Nodes) > 0 {
+			finalNode := blockDocument.System.Topology.Nodes[len(blockDocument.System.Topology.Nodes)-1]
+
+			if len(finalNode.Out) > 0 {
+				return []string{finalNode.Out[0]}, nil
+			}
+		}
+	}
+
 	topology := &ast.Topology{}
 
 	if err := yaml.Unmarshal([]byte(rendered), topology); err != nil {
@@ -629,6 +727,31 @@ func topologyOutputNames(rendered string) ([]string, error) {
 	}
 
 	return []string{finalNode.Out[0]}, nil
+}
+
+func collectNamedPortList(rawPorts []any) []string {
+	if len(rawPorts) == 0 {
+		return nil
+	}
+
+	names := make([]string, 0, len(rawPorts))
+
+	for _, rawPort := range rawPorts {
+		switch typed := rawPort.(type) {
+		case string:
+			if typed != "" {
+				names = append(names, typed)
+			}
+		case map[string]any:
+			if name, ok := typed["name"].(string); ok && name != "" {
+				names = append(names, name)
+			}
+		}
+	}
+
+	sort.Strings(names)
+
+	return names
 }
 
 func indentYAML(rendered string, spaces int) string {

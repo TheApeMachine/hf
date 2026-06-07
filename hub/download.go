@@ -287,7 +287,7 @@ func (client *Client) downloadSnapshotFiles(
 	poolCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	workerPool := qpool.NewQ(
+	workerPool := qpool.NewQ[any](
 		poolCtx,
 		request.MaxWorkers,
 		request.MaxWorkers,
@@ -299,7 +299,7 @@ func (client *Client) downloadSnapshotFiles(
 	)
 	defer workerPool.Close()
 
-	results := make([]chan *qpool.QValue[any], len(matches))
+	results := make([]*qpool.ResultWait[any], len(matches))
 
 	for index, sibling := range matches {
 		index := index
@@ -358,25 +358,22 @@ func (client *Client) downloadSnapshotFiles(
 	return files, nil
 }
 
-func waitHubSnapshotJob(ctx context.Context, result <-chan *qpool.QValue[any]) (*qpool.QValue[any], error) {
-	select {
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	case value, channelOpen := <-result:
-		if !channelOpen {
-			return nil, fmt.Errorf("hub: snapshot job result channel closed")
-		}
+func waitHubSnapshotJob(ctx context.Context, result *qpool.ResultWait[any]) (*qpool.QValue[any], error) {
+	value, err := result.Get(ctx)
 
-		if value == nil {
-			return nil, fmt.Errorf("hub: snapshot job returned nil result")
-		}
-
-		if value.Error != nil {
-			return nil, value.Error
-		}
-
-		return value, nil
+	if err != nil {
+		return nil, err
 	}
+
+	if value == nil {
+		return nil, fmt.Errorf("hub: snapshot job returned nil result")
+	}
+
+	if value.Error != nil {
+		return nil, value.Error
+	}
+
+	return value, nil
 }
 
 func hubSnapshotJobID(commit string, index int, filename string) string {
