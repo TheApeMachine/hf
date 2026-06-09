@@ -11,7 +11,7 @@ require (
 	github.com/parquet-go/parquet-go v0.30.1
 	github.com/smartystreets/goconvey v1.8.1
 	github.com/theapemachine/manifesto v1.2.3
-	github.com/theapemachine/qpool v1.2.3
+	github.com/theapemachine/qpool v1.2.4
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -38,6 +38,7 @@ require (
 	github.com/pierrec/lz4/v4 v4.1.21 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/smarty/assertions v1.16.0 // indirect
+	github.com/smarty/go-disruptor v0.5.0 // indirect
 	github.com/tinylib/msgp v1.6.4 // indirect
 	github.com/twpayne/go-geom v1.6.1 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
